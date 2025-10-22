@@ -31,7 +31,7 @@ async function run() {
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
-        
+
         const jobsCollection = client.db('jobPortal').collection('jobs');
 
         const jobApplicationCollection = client.db('jobPortal').collection('job_applications');
@@ -42,8 +42,8 @@ async function run() {
 
             const email = req.query.email;
             let query = {};
-            if(email){
-                query = { hr_email: email}
+            if (email) {
+                query = { hr_email: email }
             }
 
             const cursor = jobsCollection.find(query);
@@ -58,7 +58,7 @@ async function run() {
             res.send(result);
         })
 
-        app.post('/jobs', async(req, res) => {
+        app.post('/jobs', async (req, res) => {
             const newJob = req.body;
             const result = await jobsCollection.insertOne(newJob);
             res.send(result);
@@ -78,17 +78,24 @@ async function run() {
                 const query1 = { _id: new ObjectId(application.job_id) };
                 const job = await jobsCollection.findOne(query1);
 
-                if(job){
+                if (job) {
                     application.title = job.title;
                     application.location = job.location;
                     application.company = job.company;
                     application.company_logo = job.company_logo;
-                   
+
                 }
             }
 
             res.send(result);
 
+        })
+
+        app.get('/job-applications/jobs/:job_id', async (req, res) => {
+            const jobId = req.params.job_id;
+            const query = { job_id: jobId };
+            const result = await jobApplicationCollection.find(query).toArray();
+            res.send(result);
         })
 
         app.post('/job-applications', async (req, res) => {
@@ -98,19 +105,19 @@ async function run() {
 
             //not the best way (use aggregate)
             const id = application.job_id;
-            const query = {_id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const job = await jobsCollection.findOne(query);
 
             let newCount = 0;
-            if(job.applicationCount){
+            if (job.applicationCount) {
                 newCount = job.applicationCount + 1
             }
-            else{
+            else {
                 newCount = 1;
             }
 
             //NOW update the job info
-            const filter = {_id: new ObjectId(id)};
+            const filter = { _id: new ObjectId(id) };
             const updatedDoc = {
                 $set: {
                     applicationCount: newCount
@@ -123,6 +130,18 @@ async function run() {
             res.send(result);
         })
 
+        app.patch('/job-applications/:id', async (req, res) => {
+            const id = req.params.id;
+            const data = req.body;
+            const filter = {_id: new ObjectId(id)};
+            const updatedDoc = {
+                $set: {
+                    status: data.status
+                }
+            }
+            const result = await jobApplicationCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        })
 
     } finally {
         // await client.close();
