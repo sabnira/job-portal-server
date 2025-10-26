@@ -14,20 +14,17 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-const logger = (req, res, next) => {
-    console.log('inside the logger');
-    next();
-}
 
 const verifyToken = (req, res, next) => {
-    console.log('inside verifyToken middleware', req.cookies);
+
     const token = req?.cookies?.token;
+    console.log('inside verifyToken middleware', token);
 
     if (!token) {
         return res.status(401).send({ message: 'Unauthorized access' });
     }
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
             return res.status(401).send({ message: 'Unauthorized access' });
         }
@@ -67,18 +64,25 @@ async function run() {
         //Auth related APIs
         app.post('/jwt', async (req, res) => {
             const user = req.body;
-            const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1h' });
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '5h' });
 
-            res
-                .cookie('token', token, {
-                    httpOnly: true,
-                    secure: false,
-                })
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: false,
+            })
                 .send({ success: true });
+        });
+
+        app.post('/logout', (req, res) => {
+            res.clearCookie('token', {
+                httpOnly: true,
+                secure: false
+            })
+                .send({ success: true })
         })
 
         //jobs related apis
-        app.get('/jobs', logger, async (req, res) => {
+        app.get('/jobs', async (req, res) => {
             console.log('now');
             const email = req.query.email;
             let query = {};
@@ -110,8 +114,8 @@ async function run() {
             const email = req.query.email;
             const query = { applicant_email: email };
 
-            if(req.user.email !== req.query.email){
-                return res.status(403).send({message: 'forbidden access'});
+            if (req.user.email !== req.query.email) {
+                return res.status(403).send({ message: 'forbidden access' });
             }
 
             const result = await jobApplicationCollection.find(query).toArray();
