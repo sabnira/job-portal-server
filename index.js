@@ -8,7 +8,11 @@ require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 app.use(cors({
-    origin: ['http://localhost:5173'],
+    origin: [
+        'http://localhost:5173',
+        'https://project-f5cc8.web.app',
+        'https://project-f5cc8.firebaseapp.com'
+    ],
     credentials: true,
 }));
 app.use(express.json());
@@ -50,10 +54,10 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
 
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
 
         const jobsCollection = client.db('jobPortal').collection('jobs');
@@ -64,11 +68,12 @@ async function run() {
         //Auth related APIs
         app.post('/jwt', async (req, res) => {
             const user = req.body;
-            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '5h' });
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '10h' });
 
             res.cookie('token', token, {
                 httpOnly: true,
-                secure: false,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? "none" : "strict"
             })
                 .send({ success: true });
         });
@@ -76,21 +81,44 @@ async function run() {
         app.post('/logout', (req, res) => {
             res.clearCookie('token', {
                 httpOnly: true,
-                secure: false
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? "none" : "strict"
             })
                 .send({ success: true })
         })
 
         //jobs related apis
         app.get('/jobs', async (req, res) => {
-            console.log('now');
             const email = req.query.email;
+            const sort = req.query?.sort;
+            const search = req.query?.search;
+            const min = req.query?.min;
+            const max = req.query?.max;
+
             let query = {};
+            let sortQuery = {}
+
             if (email) {
                 query = { hr_email: email }
             }
 
-            const cursor = jobsCollection.find(query);
+            if(sort == "true"){
+                sortQuery = {"salaryRange.min" : -1}
+            }
+
+            if (search) {
+                query.location = { $regex: search, $options: "i"}
+            }
+
+            if (min && max) {
+                query = {
+                    ...query,
+                    "salaryRange.min": { $gte: parseInt(min) },
+                    "salaryRange.max": { $lte: parseInt(max) }
+                }
+            }
+
+            const cursor = jobsCollection.find(query).sort(sortQuery);
             const result = await cursor.toArray();
             res.send(result);
         })
